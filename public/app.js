@@ -92,9 +92,10 @@ async function handleOffer(offer) {
 
 // ── Socket events ─────────────────────────────────────────────────────────────
 
-socket.on('matched', async ({ role }) => {
+socket.on('matched', async ({ isOfferer }) => {  // ← CHANGED FROM 'role' TO 'isOfferer'
+  console.log('Matched! isOfferer:', isOfferer);
   showOverlay('Connecting…');
-  if (role === 'offerer') {
+  if (isOfferer) {
     await startAsOfferer();
   }
   // answerer waits for the offer
@@ -114,12 +115,12 @@ socket.on('ice-candidate', async (candidate) => {
   }
 });
 
-socket.on('peer_left', () => {
+socket.on('partnerLeft', () => {  // ← CHANGED FROM 'peer_left'
   remoteVideo.srcObject = null;
   if (active) {
     showOverlay('Stranger disconnected. Looking for someone new…');
     setButtons('waiting');
-    socket.emit('join');
+    socket.emit('start');  // ← CHANGED FROM 'join' TO 'start'
   }
 });
 
@@ -132,7 +133,7 @@ startBtn.addEventListener('click', async () => {
     active = true;
     showOverlay('Looking for someone…');
     setButtons('waiting');
-    socket.emit('join');
+    socket.emit('start');  // ← CHANGED FROM 'join' TO 'start'
   } catch (err) {
     alert('Could not access camera/microphone: ' + err.message);
   }
