@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Random Video Chat</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Random Chat</h1>
+
+    <div class="video-wrapper">
+      <div class="video-box">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <span class="label">Stranger</span>
+        <div id="waitingOverlay" class="overlay">
+          <p id="statusText">Press Start to begin</p>
+        </div>
+      </div>
+      <div class="video-box self">
+        <video id="localVideo" autoplay playsinline muted></video>
+        <span class="label">You</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="startBtn">Start</button>
+      <button id="skipBtn" disabled>Skip</button>
+      <button id="stopBtn" disabled>Stop</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
