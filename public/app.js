@@ -29,7 +29,28 @@ let localStream = null;
 let pc = null;
 let active = false;
 
-// ... rest of UI helpers stay the same ...
+// ── UI helpers ────────────────────────────────────────────────────────────────
+
+function setStatus(msg) {
+  statusText.textContent = msg;
+}
+
+function showOverlay(msg) {
+  waitingOverlay.classList.remove('hidden');
+  setStatus(msg);
+}
+
+function hideOverlay() {
+  waitingOverlay.classList.add('hidden');
+}
+
+function setButtons(state) {
+  startBtn.disabled = state !== 'idle';
+  skipBtn.disabled  = state !== 'chatting';
+  stopBtn.disabled  = state === 'idle';
+}
+
+// ── WebRTC ────────────────────────────────────────────────────────────────────
 
 function createPeerConnection() {
   if (pc) {
@@ -39,22 +60,18 @@ function createPeerConnection() {
 
   pc = new RTCPeerConnection(ICE_SERVERS);
 
-  // Add local tracks
   localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
 
-  // Relay ICE candidates
   pc.onicecandidate = ({ candidate }) => {
     if (candidate) socket.emit('ice-candidate', candidate);
   };
 
-  // Receive remote stream
   pc.ontrack = ({ streams }) => {
     remoteVideo.srcObject = streams[0];
     hideOverlay();
     setButtons('chatting');
   };
 
-  // FIX: Only disconnect on 'failed' or 'closed', not 'disconnected'
   pc.onconnectionstatechange = () => {
     console.log('Connection state:', pc.connectionState);
     if (pc && (pc.connectionState === 'failed' || pc.connectionState === 'closed')) {
@@ -66,6 +83,7 @@ function createPeerConnection() {
 }
 
 async function startAsOfferer() {
+  console.log('Starting as offerer');
   createPeerConnection();
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
@@ -73,6 +91,7 @@ async function startAsOfferer() {
 }
 
 async function handleOffer(offer) {
+  console.log('Handling offer');
   createPeerConnection();
   await pc.setRemoteDescription(new RTCSessionDescription(offer));
   const answer = await pc.createAnswer();
@@ -82,13 +101,15 @@ async function handleOffer(offer) {
 
 // ── Socket events ─────────────────────────────────────────────────────────────
 
-socket.on('matched', async ({ isOfferer }) => {  // ← CHANGED FROM 'role' TO 'isOfferer'
-  console.log('Matched! isOfferer:', isOfferer);
+socket.on('matched', async (data) => {
+  console.log('Matched! isOfferer:', data.isOfferer);
   showOverlay('Connecting…');
+  
+  const isOfferer = data.isOfferer || (data.role === 'offerer');
+  
   if (isOfferer) {
     await startAsOfferer();
   }
-  // answerer waits for the offer
 });
 
 socket.on('offer', handleOffer);
@@ -101,16 +122,18 @@ socket.on('ice-candidate', async (candidate) => {
   if (pc) {
     try {
       await pc.addIceCandidate(new RTCIceCandidate(candidate));
-    } catch (_) {}
+    } catch (err) {
+      console.error('ICE candidate error:', err);
+    }
   }
 });
 
-socket.on('partnerLeft', () => {  // ← CHANGED FROM 'peer_left'
+socket.on('partnerLeft', () => {
   remoteVideo.srcObject = null;
   if (active) {
     showOverlay('Stranger disconnected. Looking for someone new…');
     setButtons('waiting');
-    socket.emit('start');  // ← CHANGED FROM 'join' TO 'start'
+    socket.emit('start');
   }
 });
 
@@ -123,7 +146,7 @@ startBtn.addEventListener('click', async () => {
     active = true;
     showOverlay('Looking for someone…');
     setButtons('waiting');
-    socket.emit('start');  // ← CHANGED FROM 'join' TO 'start'
+    socket.emit('start');
   } catch (err) {
     alert('Could not access camera/microphone: ' + err.message);
   }
@@ -140,14 +163,18 @@ stopBtn.addEventListener('click', () => {
   active = false;
   remoteVideo.srcObject = null;
 
-  if (pc) { pc.close(); pc = null; }
+  if (pc) {
+    pc.close();
+    pc = null;
+  }
+  
   if (localStream) {
     localStream.getTracks().forEach((t) => t.stop());
     localStream = null;
     localVideo.srcObject = null;
   }
 
-  socket.emit('skip'); // remove from queue/pair
+  socket.emit('skip');
   showOverlay('Press Start to begin');
   setButtons('idle');
 });
