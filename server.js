@@ -9,8 +9,6 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// waiting: array of socket IDs looking for a partner
-// pairs: Map<socketId, partnerSocketId>
 const waiting = [];
 const pairs = new Map();
 
@@ -19,7 +17,6 @@ function tryMatch() {
     const a = waiting.shift();
     const b = waiting.shift();
 
-    // Verify both sockets are still connected
     if (!io.sockets.sockets.get(a) || !io.sockets.sockets.get(b)) {
       if (io.sockets.sockets.get(a)) waiting.unshift(a);
       if (io.sockets.sockets.get(b)) waiting.unshift(b);
@@ -29,9 +26,8 @@ function tryMatch() {
     pairs.set(a, b);
     pairs.set(b, a);
 
-    // a is the offerer, b is the answerer
-    io.to(a).emit('matched', { role: 'offerer' });
-    io.to(b).emit('matched', { role: 'answerer' });
+    io.to(a).emit('matched', { isOfferer: true });  // ← FIXED
+    io.to(b).emit('matched', { isOfferer: false }); // ← FIXED
   }
 }
 
@@ -45,27 +41,24 @@ function disconnectPair(socketId) {
   pairs.delete(socketId);
   if (partner) {
     pairs.delete(partner);
-    io.to(partner).emit('peer_left');
+    io.to(partner).emit('partnerLeft');  // ← FIXED
   }
 }
 
 io.on('connection', (socket) => {
-  // User is ready to be matched
-  socket.on('join', () => {
+  socket.on('start', () => {  // ← CHANGED FROM 'join'
     leaveQueue(socket.id);
     disconnectPair(socket.id);
     waiting.push(socket.id);
     tryMatch();
   });
 
-  // User skips current partner
   socket.on('skip', () => {
     disconnectPair(socket.id);
     waiting.push(socket.id);
     tryMatch();
   });
 
-  // WebRTC signaling relay
   socket.on('offer', (offer) => {
     const partner = pairs.get(socket.id);
     if (partner) io.to(partner).emit('offer', offer);
@@ -89,5 +82,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
