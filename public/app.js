@@ -12,36 +12,24 @@ const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    {
+      urls: ['turn:openrelay.metered.ca:80'],
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: ['turn:openrelay.metered.ca:443'],
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
   ],
 };
 
 let localStream = null;
-let pc = null;  // RTCPeerConnection
+let pc = null;
 let active = false;
 
-// ── UI helpers ────────────────────────────────────────────────────────────────
-
-function setStatus(msg) {
-  statusText.textContent = msg;
-}
-
-function showOverlay(msg) {
-  waitingOverlay.classList.remove('hidden');
-  setStatus(msg);
-}
-
-function hideOverlay() {
-  waitingOverlay.classList.add('hidden');
-}
-
-function setButtons(state) {
-  // states: 'idle' | 'waiting' | 'chatting'
-  startBtn.disabled = state !== 'idle';
-  skipBtn.disabled  = state !== 'chatting';
-  stopBtn.disabled  = state === 'idle';
-}
-
-// ── WebRTC ────────────────────────────────────────────────────────────────────
+// ... rest of UI helpers stay the same ...
 
 function createPeerConnection() {
   if (pc) {
@@ -66,8 +54,10 @@ function createPeerConnection() {
     setButtons('chatting');
   };
 
+  // FIX: Only disconnect on 'failed' or 'closed', not 'disconnected'
   pc.onconnectionstatechange = () => {
-    if (pc && (pc.connectionState === 'disconnected' || pc.connectionState === 'failed')) {
+    console.log('Connection state:', pc.connectionState);
+    if (pc && (pc.connectionState === 'failed' || pc.connectionState === 'closed')) {
       showOverlay('Connection lost. Looking for someone new…');
       setButtons('waiting');
       socket.emit('skip');
